@@ -4,20 +4,7 @@ plugins {
     id 'maven-publish'
 }
 
-publishing {
-    publications {
-        release(MavenPublication) {
-            groupId 'com.github.Omega-R'
-            artifactId = 'OmegaTestConnect'
-            version project.hasProperty('version') ? project.version : gradle.gitHash()
-            afterEvaluate {
-                from components.release
-            }
-        }
-    }
-}
-
-
+group = 'com.github.Omega-R'
 
 android {
     namespace 'com.omegar.libs.testconnect'
