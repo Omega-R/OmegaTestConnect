@@ -27,7 +27,7 @@ internal object TestConnector : Callback, CoroutineScope {
 
     private var socketClient: SocketClient? = null
     private var activityCatcher: ActivityCatcher? = null
-    private val logCatcher = LogCatcher()
+    private var logCatcher: LogCatcher? = null
 
     private var logJob: Job? = null
         set(value) {
@@ -62,21 +62,24 @@ internal object TestConnector : Callback, CoroutineScope {
         }
 
     fun init(context: Context) {
-        socketClient = SocketClient(
-            url = "ws://192.168.10.57:8080/ws",
-            deviceName = context.deviceName,
-            appName = context.appName,
-            appVersion = context.appVersion,
-            callback = this
-        ).apply {
-            connect()
+        if (BuildConfig.DEBUG) {
+            logCatcher = LogCatcher()
+            socketClient = SocketClient(
+                url = "ws://192.168.10.57:8080/ws",
+                deviceName = context.deviceName,
+                appName = context.appName,
+                appVersion = context.appVersion,
+                callback = this
+            ).apply {
+                connect()
+            }
+            activityCatcher = ActivityCatcher(context)
         }
-        activityCatcher = ActivityCatcher(context)
     }
 
     override fun startLog() {
         logJob = launch {
-            logCatcher.flow.collect {
+            logCatcher?.flow?.collect {
                 socketClient?.sendLog(it)
             }
         }

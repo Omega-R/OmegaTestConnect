@@ -53,21 +53,6 @@ internal class SocketClient(
         }
     }
 
-    override fun onClose(code: Int, reason: String?, remote: Boolean) {
-        waitAndReconnect()
-    }
-
-    override fun onError(ex: Exception?) {
-        // nothing
-    }
-
-    private fun waitAndReconnect() {
-        reconnectJob = launch {
-            delay(2000)
-            reconnect()
-        }
-    }
-
     fun sendLog(logText: String) {
         if (!isClosed) {
             send("$HEADER_LOG:$logText")
@@ -80,6 +65,21 @@ internal class SocketClient(
             stream.write("$HEADER_SEND_SCREENSHOT:".toByteArray())
             bitmap.compress(Bitmap.CompressFormat.JPEG, 80, stream)
             send(stream.toByteArray())
+        }
+    }
+
+    override fun onError(ex: Exception?) {
+        // nothing
+    }
+
+    override fun onClose(code: Int, reason: String?, remote: Boolean) {
+        waitAndReconnect()
+    }
+
+    private fun waitAndReconnect() {
+        reconnectJob = launch {
+            delay(2000)
+            reconnect()
         }
     }
 
