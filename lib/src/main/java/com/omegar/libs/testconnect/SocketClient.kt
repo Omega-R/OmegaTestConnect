@@ -10,6 +10,7 @@ import org.java_websocket.client.WebSocketClient
 import org.java_websocket.handshake.ServerHandshake
 import java.io.ByteArrayOutputStream
 import java.net.URI
+import java.nio.ByteBuffer
 import kotlin.coroutines.CoroutineContext
 
 /**
@@ -54,13 +55,37 @@ internal class SocketClient(
     }
 
     fun sendLog(logText: String) {
-        if (!isClosed) {
+        if (isOpen) {
             send("$HEADER_LOG:$logText")
         }
     }
 
+    override fun send(text: String?) {
+        try {
+            super.send(text)
+        } catch (e: Throwable) {
+            e.printStackTrace()
+        }
+    }
+
+    override fun send(data: ByteArray?) {
+        try {
+            super.send(data)
+        } catch (e: Throwable) {
+            e.printStackTrace()
+        }
+    }
+
+    override fun send(bytes: ByteBuffer?) {
+        try {
+            super.send(bytes)
+        } catch (e: Throwable) {
+            e.printStackTrace()
+        }
+    }
+
     fun sendScreenshot(bitmap: Bitmap) {
-        if (!isClosed) {
+        if (isOpen) {
             val stream = ByteArrayOutputStream()
             stream.write("$HEADER_SEND_SCREENSHOT:".toByteArray())
             bitmap.compress(Bitmap.CompressFormat.JPEG, 80, stream)

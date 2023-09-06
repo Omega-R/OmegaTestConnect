@@ -6,6 +6,7 @@ import android.content.pm.PackageManager.NameNotFoundException
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.net.Uri
 import android.os.Build
 import android.os.Build.VERSION
 import android.os.Build.VERSION_CODES
@@ -62,10 +63,11 @@ internal object TestConnector : Callback, CoroutineScope {
         }
 
     fun init(context: Context) {
-        if (BuildConfig.DEBUG) {
+        val serverAddress = if (BuildConfig.DEBUG) context.getServerAddress() else null
+        if (serverAddress != null) {
             logCatcher = LogCatcher()
             socketClient = SocketClient(
-                url = "ws://192.168.10.57:8080/ws",
+                url = serverAddress,
                 deviceName = context.deviceName,
                 appName = context.appName,
                 appVersion = context.appVersion,
@@ -75,6 +77,22 @@ internal object TestConnector : Callback, CoroutineScope {
             }
             activityCatcher = ActivityCatcher(context)
         }
+    }
+
+    private fun Context.getServerAddress(): String? {
+        try {
+            val serverAddressUri: Uri = OmegaTestConnectContract.CONTENT_URI
+            val projection = arrayOf(OmegaTestConnectContract.COLUMN_SERVER_ADDRESS)
+            val cursor = contentResolver.query(serverAddressUri, projection, null, null, null)
+            if (cursor != null && cursor.moveToFirst()) {
+                val serverAddress = cursor.getString(cursor.getColumnIndexOrThrow(OmegaTestConnectContract.COLUMN_SERVER_ADDRESS))
+                cursor.close()
+                return serverAddress
+            }
+        } catch (e: Throwable) {
+            e.printStackTrace()
+        }
+        return null
     }
 
     override fun startLog() {
@@ -115,5 +133,12 @@ internal object TestConnector : Callback, CoroutineScope {
             e.printStackTrace()
             null
         }
+    }
+
+    object OmegaTestConnectContract {
+
+        const val COLUMN_SERVER_ADDRESS = "server_address"
+        const val AUTHORITY = "com.omega.testconnectprovider"
+        val CONTENT_URI = Uri.parse("content://$AUTHORITY/server_address")
     }
 }
