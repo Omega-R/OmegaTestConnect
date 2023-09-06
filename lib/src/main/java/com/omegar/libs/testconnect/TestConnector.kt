@@ -63,8 +63,7 @@ internal object TestConnector : Callback, CoroutineScope {
         }
 
     fun init(context: Context) {
-        val serverAddress = if (BuildConfig.DEBUG) context.getServerAddress() else null
-        if (serverAddress != null) {
+        context.getServerAddress()?.let {serverAddress ->
             logCatcher = LogCatcher()
             socketClient = SocketClient(
                 url = serverAddress,
