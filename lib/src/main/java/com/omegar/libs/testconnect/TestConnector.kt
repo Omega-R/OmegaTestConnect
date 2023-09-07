@@ -1,5 +1,7 @@
 package com.omegar.libs.testconnect
 
+import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager.NameNotFoundException
@@ -10,6 +12,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Build.VERSION
 import android.os.Build.VERSION_CODES
+import android.provider.Settings
 import android.view.View
 import com.omegar.libs.testconnect.SocketClient.Callback
 import kotlinx.coroutines.CoroutineScope
@@ -47,7 +50,26 @@ internal object TestConnector : Callback, CoroutineScope {
 
     private val Context.deviceName: String
         get() = Build.MANUFACTURER.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString() } +
-                " " + Build.MODEL
+                " " + Build.MODEL +
+                " Android " + Build.VERSION.RELEASE + " (API " + Build.VERSION.SDK_INT + ")" +
+                userDeviceName?.let { " - $it" }?.replace(':', '-').orEmpty()
+
+    private val Context.userDeviceName: String?
+        get() = try {
+            (if (VERSION.SDK_INT >= VERSION_CODES.N_MR1) {
+                Settings.Global.getString(contentResolver, Settings.Global.DEVICE_NAME)
+            } else {
+                null
+            }) ?: run {
+                Settings.System.getString(contentResolver, "device_name")
+            } ?: run {
+                Settings.Secure.getString(contentResolver, "bluetooth_name")
+            } ?: run {
+                Settings.System.getString(contentResolver, "bluetooth_name")
+            }
+        } catch (e: Throwable) {
+            null
+        }
 
     private val Context.appVersion: String
         get() {
@@ -63,7 +85,7 @@ internal object TestConnector : Callback, CoroutineScope {
         }
 
     fun init(context: Context) {
-        context.getServerAddress()?.let {serverAddress ->
+        context.getServerAddress()?.let { serverAddress ->
             logCatcher = LogCatcher()
             socketClient = SocketClient(
                 url = serverAddress,
@@ -111,9 +133,8 @@ internal object TestConnector : Callback, CoroutineScope {
             activityCatcher
                 ?.flow
                 ?.value
-                ?.window
-                ?.decorView
-                ?.takeScreen()
+                .getAllViews()
+                .takeScreen()
                 ?.let {
                     socketClient.sendScreenshot(it)
                     it.recycle()
@@ -121,12 +142,39 @@ internal object TestConnector : Callback, CoroutineScope {
         }
     }
 
-    private fun View.takeScreen(): Bitmap? = runBlocking(Dispatchers.Main) {
+    @SuppressLint("PrivateApi")
+    private fun Activity?.getAllViews(): List<View> {
+        return try {
+            val wmgClass = Class.forName("android.view.WindowManagerGlobal")
+            val wmgInstance = wmgClass.getMethod("getInstance").invoke(null)
+            val getViewRootNames = wmgClass.getMethod("getViewRootNames")
+            val getRootView = wmgClass.getMethod("getRootView", String::class.java)
+            val rootViewNames = getViewRootNames.invoke(wmgInstance) as Array<*>
+            rootViewNames.mapNotNull { viewName ->
+                getRootView.invoke(wmgInstance, viewName) as? View
+            }
+        } catch (e: Throwable) {
+            e.printStackTrace()
+            this?.window?.decorView?.let { listOf(it) } ?: emptyList()
+        }
+    }
+
+    private fun List<View>.takeScreen(): Bitmap? = runBlocking(Dispatchers.Main) {
+        if (isEmpty()) return@runBlocking null
         try {
-            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val firstView = first()
+            val bitmap = Bitmap.createBitmap(firstView.width, firstView.height, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)
             canvas.drawColor(Color.WHITE)
-            draw(canvas)
+            val locationOfViewInWindow = IntArray(2)
+
+            forEach {
+                it.getLocationOnScreen(locationOfViewInWindow)
+                val saveCount = canvas.save()
+                canvas.translate(locationOfViewInWindow[0].toFloat(), locationOfViewInWindow[1].toFloat())
+                it.draw(canvas)
+                canvas.restoreToCount(saveCount)
+            }
             bitmap
         } catch (e: Throwable) {
             e.printStackTrace()
